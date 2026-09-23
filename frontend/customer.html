@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ivory Trust Bank — Customer App</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar .brand { font-size: 15px; font-weight: 600; }
+  .topbar .logout { color: var(--text-muted); text-decoration: none; font-size: 12.5px; }
+
+  .wrap { max-width: 480px; margin: 0 auto; padding: 28px 20px 60px; }
+
+  /* ---- Virtual card / account tile ---- */
+  .card-tile {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px 22px 20px;
+    background: linear-gradient(155deg, #1E293B 0%, #171D2E 75%);
+    margin-bottom: 28px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card-tile::after {
+    content: '';
+    position: absolute; top: -40px; right: -40px;
+    width: 140px; height: 140px;
+    background: radial-gradient(circle, #4F46E522 0%, transparent 70%);
+  }
+  .card-tile .wallet-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--accent-hover);
+    letter-spacing: 0.03em;
+    margin-bottom: 10px;
+  }
+  .card-tile .name { font-size: 13px; color: var(--text-secondary); margin-bottom: 2px; }
+  .card-tile .bank { font-size: 11px; color: var(--text-faint); margin-bottom: 16px; }
+  .card-tile .total-amount {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 32px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .card-tile .breakdown {
+    display: flex; gap: 18px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #ffffff14;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .card-tile .breakdown .val { color: var(--text-secondary); font-family: 'IBM Plex Mono', monospace; }
+  .card-tile .breakdown .hold .val { color: var(--flag); }
+
+  /* ---- Send form ---- */
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+  .amount-prefix { position: relative; }
+  .amount-prefix::before {
+    content: '₦';
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    color: var(--text-muted); font-family: 'IBM Plex Mono', monospace;
+    pointer-events: none;
+  }
+  .amount-prefix input { padding-left: 26px; font-family: 'IBM Plex Mono', monospace; }
+  input#account-number-input { font-family: 'IBM Plex Mono', monospace; }
+
+  .btn.send { width: 100%; padding: 12px; font-size: 14px; margin-top: 4px; }
+
+  .dev-test-section {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--border);
+  }
+  .dev-test-section .label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10.5px;
+    color: var(--text-faint);
+    letter-spacing: 0.04em;
+    margin-bottom: 10px;
+  }
+  .dev-tests { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* ---- Toast notification (fixed to top of viewport) ---- */
+  .toast {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-24px);
+    width: min(420px, calc(100% - 32px));
+    border-radius: 10px;
+    padding: 16px 18px;
+    border: 1px solid var(--border);
+    background: var(--panel-raised);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+  }
+  .toast .row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .toast .headline { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .toast .detail { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
+  .toast .close-x {
+    background: none; border: none; color: var(--text-faint);
+    font-size: 16px; line-height: 1; cursor: pointer; padding: 0;
+    margin-left: 4px;
+  }
+  .toast .close-x:hover { color: var(--text-secondary); }
+  .toast.approve { border-color: var(--approve); background: linear-gradient(var(--approve-dim), var(--approve-dim)), var(--panel-raised); }
+  .toast.approve .headline { color: var(--approve); }
+  .toast.flag { border-color: var(--flag); background: linear-gradient(var(--flag-dim), var(--flag-dim)), var(--panel-raised); }
+  .toast.flag .headline { color: var(--flag); }
+  .toast.block { border-color: var(--block); background: linear-gradient(var(--block-dim), var(--block-dim)), var(--panel-raised); }
+  .toast.block .headline { color: var(--block); }
+  .toast.error { border-color: var(--text-faint); }
+  .toast.error .headline { color: var(--text-secondary); }
+
+  /* ---- Modals (PIN confirmation + transaction detail) ---- */
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55);
+    display: none;
+    align-items: center; justify-content: center;
+    z-index: 2000;
+    padding: 20px;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal-box {
+    background: var(--panel-raised);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    width: min(360px, 100%);
+  }
+  .modal-box h3 { margin: 0 0 6px; font-size: 16px; }
+  .modal-box .sub { color: var(--text-secondary); font-size: 13px; margin-bottom: 18px; line-height: 1.5; }
+  .modal-box .pin-input {
+    text-align: center; letter-spacing: 10px; font-size: 22px;
+  }
+  .modal-box .modal-error {
+    color: var(--block); font-size: 12px; margin-top: 8px; display: none;
+  }
+  .modal-box .modal-error.show { display: block; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 18px; }
+  .modal-actions .btn { flex: 1; }
+
+  .detail-row {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-row .label { color: var(--text-muted); }
+  .detail-row .value { color: var(--text); font-family: 'IBM Plex Mono', monospace; text-align: right; }
+  .detail-note {
+    margin-top: 14px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .detail-note.flag { background: var(--flag-dim); color: var(--flag); }
+  .detail-note.block { background: var(--block-dim); color: var(--block); }
+
+  .history-item { cursor: pointer; }
+  .history-item:hover .desc .to { color: var(--accent-hover); }
+
+  /* ---- History ---- */
+  .history-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .history-item:last-child { border-bottom: none; }
+  .history-item .desc { color: var(--text-secondary); }
+  .history-item .desc .to { color: var(--text); font-weight: 500; }
+  .history-item .amt { font-family: 'IBM Plex Mono', monospace; font-weight: 600; }
+  .history-item .status { font-size: 11px; font-weight: 600; margin-left: 8px; }
+  .status.approve { color: var(--approve); }
+  .status.flag { color: var(--flag); }
+  .status.block { color: var(--block); }
+  .empty-note { color: var(--text-faint); font-size: 13px; padding: 12px 0; }
+  /* ---- Pending verification banner ---- */
+  .verify-banner {
+    display: none;
+    background: var(--flag-dim);
+    border-bottom: 1px solid var(--flag);
+    color: var(--flag);
+    padding: 10px 20px;
+    font-size: 12.5px;
+    cursor: pointer;
+    text-align: center;
+  }
+  .verify-banner.show { display: block; }
+  .verify-banner strong { text-decoration: underline; }
+
+  /* ---- Verification modal (reuses .modal-backdrop/.modal-box from the PIN modal above) ---- */
+  .otp-dev-box {
+    background: var(--flag-dim);
+    border: 1px dashed var(--flag);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: var(--flag);
+    margin-bottom: 16px;
+    line-height: 1.5;
+  }
+  .otp-dev-box .code { font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 600; letter-spacing: 0.1em; }
+  .otp-input {
+    text-align: center; letter-spacing: 10px; font-size: 20px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+</style>
+</head>
+<body>
+
+  <div class="statusbar" id="statusbar">
+    <span><span class="dot" id="status-dot"></span><strong id="status-text">Checking backend…</strong></span>
+  </div>
+
+  <div class="topbar">
+    <div class="brand">🏦 Ivory Trust Bank</div>
+    <a href="#" class="logout" id="logout-link">Log out</a>
+  </div>
+
+  <div class="verify-banner" id="verify-banner">
+    ⚠️ A held transaction needs your verification — <strong>tap to continue</strong>
+  </div>
+
+  <div class="wrap">
+
+    <div class="card-tile">
+      <div class="wallet-label">🇳🇬 NIGERIAN NAIRA WALLET</div>
+      <div class="name" id="account-name">—</div>
+      <div class="bank" id="account-meta">—</div>
+      <div class="total-amount mono" id="total-balance">₦0.00</div>
+      <div class="breakdown">
+        <span>Available: <span class="val" id="available-balance">₦0.00</span></span>
+        <span class="hold">On Hold: <span class="val" id="held-balance">₦0.00</span></span>
+      </div>
+    </div>
+
+    <form id="send-form">
+      <div class="field">
+        <label for="bank-select">Bank</label>
+        <select id="bank-select"></select>
+      </div>
+      <div class="field">
+        <label for="account-number-input">Account number</label>
+        <input type="text" id="account-number-input" placeholder="C100000003" required autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="amount-input">Amount</label>
+        <div class="amount-prefix">
+          <input type="number" id="amount-input" min="1" step="0.01" placeholder="0.00" required>
+        </div>
+      </div>
+      <button type="submit" class="btn primary send" id="send-btn">Send Money →</button>
+    </form>
+
+    <div class="dev-test-section">
+      <div class="label">DEVELOPER TEST CONTROLS</div>
+      <div class="dev-tests">
+        <button class="btn dev-test" id="test-normal">Small payment</button>
+        <button class="btn dev-test" id="test-large" title="Needs a balance above ₦1.77M — try Chika Eze's account">Large transfer (flag/block)</button>
+        <button class="btn dev-test" id="test-drain">Drain full balance</button>
+      </div>
+    </div>
+
+    <div class="section-title" style="margin-top: 32px;">Recent Transactions</div>
+    <div id="history-list">
+      <div class="empty-note">No transactions yet.</div>
+    </div>
+
+  </div>
+
+  <div class="toast" id="toast">
+    <div class="row">
+      <div>
+        <div class="headline" id="toast-headline"></div>
+        <div class="detail" id="toast-detail"></div>
+      </div>
+      <button class="close-x" id="toast-close">✕</button>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="pin-modal-backdrop">
+    <div class="modal-box">
+      <h3>Confirm transfer</h3>
+      <p class="sub" id="pin-modal-sub"></p>
+      <input type="password" id="pin-confirm-input" class="pin-input" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off">
+      <div class="modal-error" id="pin-modal-error"></div>
+      <div class="modal-actions">
+        <button class="btn" id="pin-modal-cancel">Cancel</button>
+        <button class="btn primary" id="pin-modal-confirm">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="verify-modal-backdrop">
+    <div class="modal-box">
+      <h3>Verify transaction</h3>
+      <p class="sub">A held transaction on your account is ready to be released. Enter the verification code to confirm it was you.</p>
+      <div class="otp-dev-box" id="verify-otp-dev-box"></div>
+      <input type="text" id="verify-otp-input" class="otp-input" inputmode="numeric" maxlength="6" placeholder="------" autocomplete="off">
+      <div class="modal-error" id="verify-modal-error"></div>
+      <div class="modal-actions">
+        <button class="btn" id="verify-modal-cancel">Later</button>
+        <button class="btn primary" id="verify-modal-confirm">Verify</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="detail-modal-backdrop">
+    <div class="modal-box">
+      <h3 id="detail-modal-title">Transaction</h3>
+      <div id="detail-modal-rows"></div>
+      <div class="detail-note" id="detail-modal-note" style="display:none;"></div>
+      <div class="modal-actions">
+        <button class="btn" id="detail-modal-close" style="flex: 1;">Close</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+// ---- Session check: redirect to login if not authenticated ----
+const sessionRaw = sessionStorage.getItem('ivorytrust_session');
+if (!sessionRaw) {
+  window.location.href = 'login.html';
+}
+let currentAccount = sessionRaw ? JSON.parse(sessionRaw) : null;
+let allAccounts = [];
+
+// Believable pre-existing history, purely cosmetic (not from the
+// live pipeline) so a freshly logged-in account doesn't look empty --
+// real fintech apps are never a blank slate on first login.
+const MOCK_HISTORY = {
+  'C100000001': [
+    {desc: 'Shoprite Supermarket', amount: 8200},
+    {desc: 'DSTV Subscription', amount: 18900},
+  ],
+  'C100000003': [
+    {desc: 'Spar Supermarket', amount: 12500},
+    {desc: 'MTN Airtime Top-up', amount: 2000},
+  ],
+  'C100000005': [
+    {desc: 'Netflix Subscription', amount: 4400},
+    {desc: 'Uber Ride', amount: 3600},
+  ],
+  'C100000006': [
+    {desc: 'Bolt Food', amount: 7200},
+    {desc: 'GLO Data Bundle', amount: 5000},
+  ],
+};
+
+document.getElementById('logout-link').addEventListener('click', (e) => {
+  e.preventDefault();
+  sessionStorage.removeItem('ivorytrust_session');
+  window.location.href = 'login.html';
+});
+
+async function fetchJSON(url, options) {
+  const res = await fetch(url, options);
+  const body = await res.json();
+  if (!res.ok) throw body;
+  return body;
+}
+
+async function checkBackend() {
+  try {
+    await fetchJSON('/api/state');
+    document.getElementById('status-dot').classList.add('live');
+    document.getElementById('status-text').textContent = 'Backend online';
+  } catch (err) {
+    document.getElementById('status-dot').classList.add('down');
+    document.getElementById('status-text').textContent = 'Backend unreachable';
+  }
+}
+
+function renderCard() {
+  const total = currentAccount.available_balance + currentAccount.held_balance;
+  document.getElementById('account-name').textContent = currentAccount.display_name;
+  document.getElementById('account-meta').textContent =
+    `${currentAccount.bank_name} · ${currentAccount.account_id}`;
+  document.getElementById('total-balance').textContent =
+    '₦' + total.toLocaleString(undefined, {minimumFractionDigits: 2});
+  document.getElementById('available-balance').textContent =
+    '₦' + currentAccount.available_balance.toLocaleString(undefined, {minimumFractionDigits: 2});
+  document.getElementById('held-balance').textContent =
+    '₦' + currentAccount.held_balance.toLocaleString(undefined, {minimumFractionDigits: 2});
+}
+
+async function refreshAccount() {
+  currentAccount = await fetchJSON(`/api/accounts/${currentAccount.account_id}`);
+  sessionStorage.setItem('ivorytrust_session', JSON.stringify(currentAccount));
+  renderCard();
+}
+
+function renderBankOptions() {
+  const banks = [...new Set(allAccounts.map(a => a.bank_name))];
+  document.getElementById('bank-select').innerHTML =
+    banks.map(b => `<option value="${b}">${b}</option>`).join('');
+}
+
+function resolveReceiver(bankName, accountNumber) {
+  const number = accountNumber.trim().toUpperCase();
+  return allAccounts.find(a => a.bank_name === bankName && a.account_id === number) || null;
+}
+
+let currentHistoryItems = [];
+
+async function loadHistory() {
+  const all = await fetchJSON('/api/live-transactions?limit=100');
+  const mine = all.filter(t => t.sender_id === currentAccount.account_id || t.receiver_id === currentAccount.account_id);
+  const mock = MOCK_HISTORY[currentAccount.account_id] || [];
+
+  const list = document.getElementById('history-list');
+  if (mine.length === 0 && mock.length === 0) {
+    list.innerHTML = '<div class="empty-note">No transactions yet.</div>';
+    currentHistoryItems = [];
+    return;
+  }
+
+  currentHistoryItems = [];
+
+  const realRows = mine.slice(0, 10).map(t => {
+    const isOutgoing = t.sender_id === currentAccount.account_id;
+    const other = isOutgoing ? t.receiver_id : t.sender_id;
+    const verb = isOutgoing ? 'To' : 'From';
+    const sign = isOutgoing ? '-' : '+';
+    const idx = currentHistoryItems.length;
+    const effStatus = effectiveStatus(t);
+    currentHistoryItems.push({
+      isMock: false,
+      counterparty: other,
+      direction: verb,
+      amount: Number(t.amount),
+      status: effStatus,
+      reference: t.transaction_id,
+      timestamp: t.timestamp,
+    });
+    return `
+      <div class="history-item" data-idx="${idx}">
+        <div class="desc">${verb} <span class="to">${other}</span>
+          <span class="status ${effStatus}">${statusLabel(effStatus)}</span>
+        </div>
+        <div class="amt">${sign}₦${Number(t.amount).toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+      </div>`;
+  }).join('');
+
+  const mockRows = mock.map(m => {
+    const idx = currentHistoryItems.length;
+    currentHistoryItems.push({
+      isMock: true,
+      counterparty: m.desc,
+      direction: 'To',
+      amount: m.amount,
+      status: 'approve',
+      reference: null,
+      timestamp: null,
+    });
+    return `
+      <div class="history-item" data-idx="${idx}">
+        <div class="desc">🟢 <span class="to">${m.desc}</span></div>
+        <div class="amt">-₦${m.amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+      </div>`;
+  }).join('');
+
+  list.innerHTML = realRows + mockRows;
+}
+
+document.getElementById('history-list').addEventListener('click', (e) => {
+  const row = e.target.closest('.history-item');
+  if (!row) return;
+  const item = currentHistoryItems[parseInt(row.dataset.idx, 10)];
+  if (item) openDetailModal(item);
+});
+
+function openDetailModal(item) {
+  document.getElementById('detail-modal-title').textContent =
+    item.direction === 'To' ? `Payment to ${item.counterparty}` : `Payment from ${item.counterparty}`;
+
+  const rows = [
+    ['Amount', '₦' + item.amount.toLocaleString(undefined, {minimumFractionDigits: 2})],
+    ['Status', statusLabel(item.status)],
+  ];
+  if (item.reference) rows.push(['Reference', item.reference]);
+  if (item.timestamp) rows.push(['Date', item.timestamp]);
+  if (item.isMock) rows.push(['Note', 'Prior account history']);
+
+  document.getElementById('detail-modal-rows').innerHTML = rows.map(([label, value]) =>
+    `<div class="detail-row"><span class="label">${label}</span><span class="value">${value}</span></div>`
+  ).join('');
+
+  const note = document.getElementById('detail-modal-note');
+  if (item.status === 'flag') {
+    note.className = 'detail-note flag';
+    note.textContent = 'This transaction is on hold pending analyst review. Funds are reserved and will release automatically once resolved.';
+    note.style.display = 'block';
+  } else if (item.status === 'block') {
+    note.className = 'detail-note block';
+    note.textContent = 'This transaction was blocked. Contact support and quote the reference above if you believe this is an error.';
+    note.style.display = 'block';
+  } else {
+    note.style.display = 'none';
+  }
+
+  document.getElementById('detail-modal-backdrop').classList.add('show');
+}
+
+document.getElementById('detail-modal-close').addEventListener('click', () => {
+  document.getElementById('detail-modal-backdrop').classList.remove('show');
+});
+document.getElementById('detail-modal-backdrop').addEventListener('click', (e) => {
+  if (e.target.id === 'detail-modal-backdrop') e.currentTarget.classList.remove('show');
+});
+
+function effectiveStatus(t) {
+  // A resolved review has moved past its original final_decision --
+  // e.g. a 'flag' an analyst confirmed as fraud is now truly
+  // 'block', not still 'flag'. Same fix as the admin dashboard's feed.
+  if (t.resolution === 'confirmed_fraud') return 'block';
+  if (t.resolution === 'confirmed_legitimate') return 'approve';
+  return t.final_decision;
+}
+
+function statusLabel(decision) {
+  if (decision === 'approve') return 'SENT';
+  if (decision === 'flag') return 'UNDER REVIEW';
+  if (decision === 'block') return 'BLOCKED';
+  return decision;
+}
+
+let toastTimer = null;
+
+function showToast(className, headlineText, detailText) {
+  const toast = document.getElementById('toast');
+  document.getElementById('toast-headline').textContent = headlineText;
+  document.getElementById('toast-detail').textContent = detailText;
+  toast.className = 'toast show ' + className;
+
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideToast, 6000);
+}
+
+function hideToast() {
+  document.getElementById('toast').classList.remove('show');
+  clearTimeout(toastTimer);
+}
+
+document.getElementById('toast-close').addEventListener('click', hideToast);
+
+function showResult(decision, amount, receiverName) {
+  if (decision === 'approve') {
+    showToast('approve', '✅ Sent',
+      `₦${amount.toLocaleString(undefined, {minimumFractionDigits: 2})} sent to ${receiverName}.`);
+  } else if (decision === 'flag') {
+    showToast('flag', '⏳ Under review',
+      `₦${amount.toLocaleString(undefined, {minimumFractionDigits: 2})} has been placed on hold pending verification. You'll be notified once it's resolved.`);
+  } else if (decision === 'block') {
+    showToast('block', '🚫 Transaction blocked',
+      'This transaction could not be completed. Please contact support if you believe this is an error.');
+  }
+}
+
+function showError(message) {
+  showToast('error', 'Could not send', message);
+}
+
+async function submitTransaction(receiverId, amount, receiverNameOverride) {
+  const sendBtn = document.getElementById('send-btn');
+  sendBtn.disabled = true;
+  sendBtn.textContent = 'Sending…';
+  try {
+    const receiver = allAccounts.find(a => a.account_id === receiverId);
+    const txnType = receiverId.startsWith('M') ? 'PAYMENT' : 'TRANSFER';
+
+    const result = await fetchJSON('/api/transactions', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        sender_id: currentAccount.account_id,
+        receiver_id: receiverId,
+        type: txnType,
+        amount: amount,
+      }),
+    });
+    showResult(result.final_decision, amount, receiverNameOverride || (receiver ? receiver.display_name : receiverId));
+    await refreshAccount();
+    await loadHistory();
+  } catch (err) {
+    showError(err.message || 'Something went wrong.');
+  } finally {
+    sendBtn.disabled = false;
+    sendBtn.textContent = 'Send Money →';
+  }
+}
+
+let pendingTransaction = null;
+
+function openPinModal(receiverId, amount, receiverName, bankName) {
+  pendingTransaction = {receiverId, amount, receiverName};
+  document.getElementById('pin-modal-sub').textContent =
+    `Enter your PIN to confirm sending ₦${amount.toLocaleString(undefined, {minimumFractionDigits: 2})} to ${receiverName} (${bankName}).`;
+  document.getElementById('pin-confirm-input').value = '';
+  document.getElementById('pin-modal-error').classList.remove('show');
+  document.getElementById('pin-modal-backdrop').classList.add('show');
+  document.getElementById('pin-confirm-input').focus();
+}
+
+function closePinModal() {
+  document.getElementById('pin-modal-backdrop').classList.remove('show');
+  pendingTransaction = null;
+}
+
+async function confirmPinAndSubmit() {
+  const pin = document.getElementById('pin-confirm-input').value.trim();
+  const errorBox = document.getElementById('pin-modal-error');
+  const confirmBtn = document.getElementById('pin-modal-confirm');
+
+  if (!pin) return;
+  confirmBtn.disabled = true;
+  confirmBtn.textContent = 'Checking…';
+  errorBox.classList.remove('show');
+
+  try {
+    // Re-verify the PIN against the account that's actually logged in
+    // right now, the same way the login screen does -- this is a
+    // fresh check, not something we could validate client-side, since
+    // the PIN is never sent to the browser after login.
+    await fetchJSON('/api/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({account_id: currentAccount.account_id, pin: pin}),
+    });
+
+    const {receiverId, amount, receiverName} = pendingTransaction;
+    closePinModal();
+    submitTransaction(receiverId, amount, receiverName);
+  } catch (err) {
+    errorBox.textContent = err.message || 'Incorrect PIN.';
+    errorBox.classList.add('show');
+    document.getElementById('pin-confirm-input').value = '';
+    document.getElementById('pin-confirm-input').focus();
+  } finally {
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = 'Confirm';
+  }
+}
+
+document.getElementById('pin-modal-confirm').addEventListener('click', confirmPinAndSubmit);
+document.getElementById('pin-modal-cancel').addEventListener('click', closePinModal);
+document.getElementById('pin-confirm-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') confirmPinAndSubmit();
+});
+
+document.getElementById('send-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const bankName = document.getElementById('bank-select').value;
+  const accountNumber = document.getElementById('account-number-input').value;
+  const amount = parseFloat(document.getElementById('amount-input').value);
+  if (!accountNumber || !amount || amount <= 0) return;
+
+  const receiver = resolveReceiver(bankName, accountNumber);
+  if (!receiver) {
+    showError(`No account found with number ${accountNumber.toUpperCase()} at ${bankName}.`);
+    return;
+  }
+  if (receiver.account_id === currentAccount.account_id) {
+    showError("You can't send money to yourself.");
+    return;
+  }
+  openPinModal(receiver.account_id, amount, receiver.display_name, bankName);
+});
+
+// Quick test buttons: fill in the form fields so the person demoing
+// can see exactly what's about to be sent, and still goes through
+// the normal Send Money -> PIN confirmation flow -- these are meant
+// to save typing, not skip the real transaction path.
+const LOGINABLE_ACCOUNT_IDS = ['C100000001', 'C100000003', 'C100000005', 'C100000006'];
+function otherLoginableAccountId() {
+  const others = LOGINABLE_ACCOUNT_IDS.filter(id => id !== currentAccount.account_id);
+  return others[Math.floor(Math.random() * others.length)];
+}
+
+function fillTransferForm(bankName, accountNumber, amount) {
+  document.getElementById('bank-select').value = bankName;
+  document.getElementById('account-number-input').value = accountNumber;
+  document.getElementById('amount-input').value = amount;
+  hideToast();
+}
+
+document.getElementById('test-normal').addEventListener('click', () => {
+  fillTransferForm('Ivory Trust Bank', 'M100000004', 5000);
+});
+document.getElementById('test-large').addEventListener('click', () => {
+  const receiverId = otherLoginableAccountId();
+  const receiver = allAccounts.find(a => a.account_id === receiverId);
+  fillTransferForm(receiver.bank_name, receiverId, 1_800_000);
+});
+document.getElementById('test-drain').addEventListener('click', () => {
+  const receiverId = otherLoginableAccountId();
+  const receiver = allAccounts.find(a => a.account_id === receiverId);
+  fillTransferForm(receiver.bank_name, receiverId, currentAccount.available_balance);
+});
+
+let pendingVerification = null;
+
+async function checkPendingVerification() {
+  try {
+    const resp = await fetchJSON(`/api/customer/pending-verification?account_id=${currentAccount.account_id}`);
+    const banner = document.getElementById('verify-banner');
+    if (resp.pending) {
+      pendingVerification = resp;
+      banner.classList.add('show');
+    } else {
+      pendingVerification = null;
+      banner.classList.remove('show');
+      // If the verify modal happens to be open when the pending item
+      // disappears (resolved from this tab, or expired), close it.
+      document.getElementById('verify-modal-backdrop').classList.remove('show');
+    }
+  } catch (err) {
+    // Silently skip -- this is a background poll, not a user action.
+  }
+}
+
+function openVerifyModal() {
+  if (!pendingVerification) return;
+  document.getElementById('verify-otp-dev-box').innerHTML =
+    `<strong>DEMO MODE</strong> — in production this code would arrive by SMS. Since there's no real gateway here, it's shown directly: ` +
+    `<span class="code">${pendingVerification.otp}</span>.`;
+  document.getElementById('verify-otp-input').value = '';
+  document.getElementById('verify-modal-error').classList.remove('show');
+  document.getElementById('verify-modal-backdrop').classList.add('show');
+  document.getElementById('verify-otp-input').focus();
+}
+
+document.getElementById('verify-banner').addEventListener('click', openVerifyModal);
+document.getElementById('verify-modal-cancel').addEventListener('click', () => {
+  document.getElementById('verify-modal-backdrop').classList.remove('show');
+});
+
+async function submitVerifyOtp() {
+  if (!pendingVerification) return;
+  const otp = document.getElementById('verify-otp-input').value.trim();
+  const errorBox = document.getElementById('verify-modal-error');
+  const confirmBtn = document.getElementById('verify-modal-confirm');
+  if (!otp) return;
+
+  confirmBtn.disabled = true;
+  confirmBtn.textContent = 'Verifying…';
+  errorBox.classList.remove('show');
+
+  try {
+    await fetchJSON(`/api/reviews/${pendingVerification.transaction_id}/verify-otp`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({otp}),
+    });
+    document.getElementById('verify-modal-backdrop').classList.remove('show');
+    document.getElementById('verify-banner').classList.remove('show');
+    pendingVerification = null;
+    showToast('approve', '✅ Verified', 'Your transaction has been released.');
+    await refreshAccount();
+    await loadHistory();
+  } catch (err) {
+    errorBox.textContent = err.message || 'Verification failed.';
+    errorBox.classList.add('show');
+    document.getElementById('verify-otp-input').value = '';
+    document.getElementById('verify-otp-input').focus();
+  } finally {
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = 'Verify';
+  }
+}
+
+document.getElementById('verify-modal-confirm').addEventListener('click', submitVerifyOtp);
+document.getElementById('verify-otp-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') submitVerifyOtp();
+});
+
+async function init() {
+  if (!currentAccount) return;
+  checkBackend();
+  renderCard();
+  allAccounts = await fetchJSON('/api/accounts');
+  renderBankOptions();
+  await refreshAccount();
+  await loadHistory();
+  await checkPendingVerification();
+}
+init();
+
+// Poll periodically so a resolution made in the admin dashboard (a
+// separate browser tab/session) shows up here without requiring the
+// customer to submit something first.
+setInterval(() => {
+  if (!currentAccount) return;
+  checkBackend();
+  refreshAccount();
+  loadHistory();
+  checkPendingVerification();
+}, 5000);
+</script>
+
+</body>
+</html>

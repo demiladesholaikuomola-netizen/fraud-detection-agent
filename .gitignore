@@ -1,0 +1,13 @@
+# Large dataset - never commit, not needed for the app to run
+paysim.csv
+
+# Local databases - generated at runtime, contain demo data only
+*.db
+
+# Python cache
+__pycache__/
+*.pyc
+
+# OS junk
+.DS_Store
+Thumbs.db

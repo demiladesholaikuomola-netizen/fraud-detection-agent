@@ -1,0 +1,149 @@
+/* ==========================================================
+   Shared design system — Fraud Detection Console
+   Used by index.html, customer.html, admin.html
+   ========================================================== */
+
+:root {
+  --bg: #0F1420;
+  --panel: #171D2E;
+  --panel-raised: #1D2438;
+  --border: #2A3350;
+  --text: #E8EAF0;
+  --text-secondary: #B4BBD1;
+  --text-muted: #8890A6;
+  --text-faint: #565F7A;
+
+  --block: #E85C4A;
+  --block-dim: #E85C4A22;
+  --flag: #E8A93B;
+  --flag-dim: #E8A93B22;
+  --approve: #3FA796;
+  --approve-dim: #3FA79622;
+  --accent: #4F46E5;
+  --accent-hover: #6259EA;
+
+  /* Form surfaces: deliberately lighter than --panel so inputs and
+     dropdowns look like they step forward off the page, instead of
+     blending into the same flat dark tone as the background. */
+  --input-bg: #1E293B;
+  --input-border: #334155;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #F3F4F8;
+    --panel: #FFFFFF;
+    --panel-raised: #FAFBFD;
+    --border: #DDE1EC;
+    --text: #171A26;
+    --text-secondary: #454C61;
+    --text-muted: #5C6478;
+    --text-faint: #9AA1B4;
+    --input-bg: #F7F8FC;
+    --input-border: #C7CCDC;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F1420; --panel: #171D2E; --panel-raised: #1D2438;
+  --border: #2A3350; --text: #E8EAF0; --text-secondary: #B4BBD1;
+  --text-muted: #8890A6; --text-faint: #565F7A;
+  --input-bg: #1E293B; --input-border: #334155;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.mono { font-family: 'IBM Plex Mono', monospace; }
+
+a { color: var(--accent); }
+
+/* ---- Status strip (shared header element across all pages) ---- */
+.statusbar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-wrap: wrap;
+}
+.statusbar .dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  margin-right: 6px;
+}
+.statusbar .dot.live {
+  background: var(--approve);
+  box-shadow: 0 0 6px var(--approve);
+}
+.statusbar .dot.down {
+  background: var(--block);
+  box-shadow: 0 0 6px var(--block);
+}
+.statusbar strong { color: var(--text); font-weight: 500; }
+
+/* ---- Buttons ---- */
+.btn {
+  font-size: 13px; font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-raised);
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #FFFFFF; font-weight: 600; }
+.btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn.confirm { border-color: var(--block); color: var(--block); }
+.btn.dismiss { border-color: var(--approve); color: var(--approve); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Developer test controls: visually distinct from real product
+   actions, so it's obvious in a demo that these are a testing aid,
+   not something a customer would ever see. */
+.btn.dev-test {
+  background: #12151C;
+  border: 1px dashed var(--text-faint);
+  color: var(--text-muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  border-radius: 6px;
+}
+.btn.dev-test:hover { border-color: var(--text-muted); color: var(--text-secondary); }
+
+/* ---- Form inputs (shared across login, customer app) ---- */
+select, input[type="text"], input[type="number"], input[type="password"], input[type="tel"] {
+  width: 100%;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+}
+select:focus, input:focus { outline: none; border-color: var(--accent); }
+
+/* ---- Section titles ---- */
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin: 0 0 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}

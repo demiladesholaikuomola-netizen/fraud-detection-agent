@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fraud Ops Command Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar .brand { font-size: 15px; font-weight: 600; }
+  .topbar .home { color: var(--text-muted); text-decoration: none; font-size: 12.5px; }
+
+  /* ---- KPI row ---- */
+  .kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  @media (max-width: 900px) { .kpi-strip { grid-template-columns: repeat(3, 1fr); } }
+  .kpi {
+    background: var(--bg);
+    padding: 16px 18px;
+  }
+  .kpi .n { font-family: 'IBM Plex Mono', monospace; font-size: 20px; font-weight: 600; }
+  .kpi .l { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+  .kpi.approve .n { color: var(--approve); }
+  .kpi.flag .n { color: var(--flag); }
+  .kpi.block .n { color: var(--block); }
+
+  /* ---- Layout ---- */
+  .layout {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 1px;
+    background: var(--border);
+  }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  .col { background: var(--bg); padding: 22px; }
+  .col h2 {
+    font-size: 13px; font-weight: 600; color: var(--text-muted);
+    margin: 0 0 14px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .col h2 .count { font-family: 'IBM Plex Mono', monospace; color: var(--text-secondary); }
+
+  /* ---- Feed ---- */
+  .txn-list { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .txn {
+    display: grid;
+    grid-template-columns: 4px 1fr auto;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    cursor: pointer;
+  }
+  .txn:last-child { border-bottom: none; }
+  .txn:hover { background: var(--panel-raised); }
+  .txn .bar { background: var(--text-faint); }
+  .txn.approve .bar { background: var(--approve); }
+  .txn.flag .bar { background: var(--flag); }
+  .txn.block .bar { background: var(--block); }
+  .txn .body { padding: 12px 16px; min-width: 0; }
+  .txn .top-row { display: flex; justify-content: space-between; gap: 12px; }
+  .txn .id { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; color: var(--text-muted); }
+  .txn .amount { font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; }
+  .txn .route { font-size: 12.5px; color: var(--text-secondary); margin-top: 3px; }
+  .txn .reason { font-size: 11.5px; color: var(--text-muted); margin-top: 3px; }
+  .txn .status {
+    display: flex; align-items: center; padding: 0 16px;
+    font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em;
+  }
+  .txn.approve .status { color: var(--approve); }
+  .txn.flag .status { color: var(--flag); }
+  .txn.block .status { color: var(--block); }
+  .empty-note { color: var(--text-faint); font-size: 13px; padding: 16px; text-align: center; }
+
+  /* ---- Review queue ---- */
+  .review-item {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 10px;
+    background: var(--panel);
+  }
+  .review-item .top-row { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+  .review-item .id { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; color: var(--text-muted); }
+  .review-item .amount { font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 600; color: var(--flag); }
+  .review-item .why { font-size: 12.5px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5; }
+  .review-item .actions { display: flex; gap: 8px; }
+  .review-item .actions .btn { flex: 1; font-size: 12px; padding: 7px; }
+
+  /* ---- Detail modal ---- */
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55);
+    display: none;
+    align-items: center; justify-content: center;
+    z-index: 2000;
+    padding: 20px;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal-box {
+    background: var(--panel-raised);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    width: min(420px, 100%);
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+  .modal-box h3 { margin: 0 0 16px; font-size: 16px; }
+  .detail-row {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-row .label { color: var(--text-muted); }
+  .detail-row .value { color: var(--text); font-family: 'IBM Plex Mono', monospace; text-align: right; max-width: 60%; }
+  .reasoning-box {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+  }
+  .modal-actions { margin-top: 18px; }
+  .modal-actions .btn { width: 100%; }
+
+  /* ---- Modal tabs ---- */
+  .modal-tabs { display: flex; gap: 4px; margin-bottom: 18px; border-bottom: 1px solid var(--border); }
+  .modal-tab {
+    background: none; border: none; cursor: pointer;
+    padding: 8px 4px 10px;
+    font-family: inherit; font-size: 12.5px; font-weight: 500;
+    color: var(--text-muted);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+  .modal-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ---- Pipeline stepper ---- */
+  .stepper { position: relative; }
+  .step { display: flex; gap: 14px; padding-bottom: 20px; position: relative; }
+  .step:last-child { padding-bottom: 0; }
+  .step:not(:last-child)::after {
+    content: ''; position: absolute; left: 13px; top: 30px; bottom: 0;
+    width: 1px; background: var(--border);
+  }
+  .step-marker {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--input-bg); border: 1px solid var(--input-border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; flex-shrink: 0; z-index: 1;
+  }
+  .step-marker.approve { border-color: var(--approve); background: var(--approve-dim); }
+  .step-marker.flag { border-color: var(--flag); background: var(--flag-dim); }
+  .step-marker.block { border-color: var(--block); background: var(--block-dim); }
+  .step-content { padding-top: 3px; min-width: 0; }
+  .step-phase {
+    font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; color: var(--accent-hover);
+    letter-spacing: 0.06em; margin-bottom: 3px;
+  }
+  .step-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .step-detail { font-size: 12px; color: var(--text-secondary); line-height: 1.55; }
+  .step-detail .hl { color: var(--text); font-family: 'IBM Plex Mono', monospace; }
+
+  /* ---- OTP modal ---- */
+  .otp-dev-box {
+    background: var(--flag-dim);
+    border: 1px dashed var(--flag);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: var(--flag);
+    margin-bottom: 16px;
+    line-height: 1.5;
+  }
+  .otp-dev-box .code { font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 600; letter-spacing: 0.1em; }
+  .otp-input {
+    text-align: center; letter-spacing: 10px; font-size: 20px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .modal-error {
+    color: var(--block); font-size: 12px; margin-top: 8px; display: none;
+  }
+  .modal-error.show { display: block; }
+
+  /* Learning-batch KPI gets its own row under the main strip */
+  .learning-strip {
+    padding: 10px 24px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-muted);
+    display: flex; gap: 16px; align-items: center;
+  }
+  .learning-strip .bar-track {
+    width: 100px; height: 5px; border-radius: 3px;
+    background: var(--input-bg); overflow: hidden;
+  }
+  .learning-strip .bar-fill { height: 100%; background: var(--accent); }
+</style>
+</head>
+<body>
+
+  <div class="statusbar" id="statusbar">
+    <span><span class="dot" id="status-dot"></span><strong id="status-text">Checking backend…</strong></span>
+    <span>Threshold: <span class="mono" id="status-threshold">—</span></span>
+    <span>Blacklist: <span class="mono" id="status-blacklist">—</span> accounts</span>
+  </div>
+
+  <div class="topbar">
+    <div class="brand">🛡 Fraud Ops Command Center</div>
+    <div style="display:flex; align-items:center; gap:16px;">
+      <span id="analyst-name" style="font-size:12.5px; color: var(--text-muted);"></span>
+      <a href="#" class="home" id="logout-link">Log out</a>
+      <a href="index.html" class="home">← Home</a>
+    </div>
+  </div>
+
+  <div class="kpi-strip">
+    <div class="kpi"><div class="n" id="kpi-total">0</div><div class="l">Total transactions</div></div>
+    <div class="kpi approve"><div class="n" id="kpi-approved">0</div><div class="l">Approved</div></div>
+    <div class="kpi flag"><div class="n" id="kpi-flagged">0</div><div class="l">Flagged</div></div>
+    <div class="kpi block"><div class="n" id="kpi-blocked">0</div><div class="l">Blocked</div></div>
+    <div class="kpi block"><div class="n" id="kpi-blocked-value">₦0</div><div class="l">Value blocked</div></div>
+    <div class="kpi flag"><div class="n" id="kpi-pending">0</div><div class="l">Pending review</div></div>
+  </div>
+
+  <div class="learning-strip">
+    <span>🎓 Learning Agent batch: <span class="mono" id="learning-progress">0/0</span> resolved reviews until next threshold review</span>
+    <span class="bar-track"><span class="bar-fill" id="learning-bar" style="width:0%"></span></span>
+    <span id="learning-last-update"></span>
+  </div>
+
+  <div class="layout">
+    <div class="col">
+      <h2>Live transaction feed <span class="count" id="feed-count"></span></h2>
+      <div class="txn-list" id="feed-list">
+        <div class="empty-note">No transactions yet.</div>
+      </div>
+    </div>
+
+    <div class="col">
+      <h2>Pending analyst review <span class="count" id="review-count"></span></h2>
+      <div id="review-list">
+        <div class="empty-note">Nothing waiting for review.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="detail-modal-backdrop">
+    <div class="modal-box">
+      <h3>Transaction trace</h3>
+      <div class="modal-tabs">
+        <button class="modal-tab active" id="tab-flow-btn">Pipeline Flow</button>
+        <button class="modal-tab" id="tab-raw-btn">Raw Data</button>
+      </div>
+      <div class="tab-panel active" id="tab-flow-panel">
+        <div class="stepper" id="pipeline-stepper"></div>
+      </div>
+      <div class="tab-panel" id="tab-raw-panel">
+        <div id="detail-modal-rows"></div>
+        <div class="reasoning-box" id="detail-modal-reasoning"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" id="detail-modal-close">Close</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+// ---- Session check: redirect to analyst login if not authenticated ----
+const adminSessionRaw = sessionStorage.getItem('fraudops_session');
+if (!adminSessionRaw) {
+  window.location.href = 'admin-login.html';
+}
+const adminSession = adminSessionRaw ? JSON.parse(adminSessionRaw) : null;
+if (adminSession) {
+  document.getElementById('analyst-name').textContent = `Logged in as ${adminSession.display_name}`;
+}
+document.getElementById('logout-link').addEventListener('click', (e) => {
+  e.preventDefault();
+  sessionStorage.removeItem('fraudops_session');
+  window.location.href = 'admin-login.html';
+});
+
+let latestFeed = [];
+let latestState = null;
+
+async function fetchJSON(url, options) {
+  const res = await fetch(url, options);
+  const body = await res.json();
+  if (!res.ok) throw body;
+  return body;
+}
+
+function fmtAmount(n) {
+  return '₦' + Number(n).toLocaleString(undefined, {minimumFractionDigits: 2});
+}
+
+async function refreshState() {
+  try {
+    const state = await fetchJSON('/api/state');
+    latestState = state;
+    document.getElementById('status-dot').classList.add('live');
+    document.getElementById('status-dot').classList.remove('down');
+    document.getElementById('status-text').textContent = 'Backend online';
+    document.getElementById('status-threshold').textContent = state.current_threshold.toFixed(2);
+    document.getElementById('status-blacklist').textContent = state.blacklist_size;
+
+    document.getElementById('learning-progress').textContent =
+      `${state.pending_for_learning}/${state.learn_every}`;
+    document.getElementById('learning-bar').style.width =
+      Math.round((state.pending_for_learning / state.learn_every) * 100) + '%';
+    document.getElementById('learning-last-update').textContent = state.last_learning_pass
+      ? `· Last update: ${state.last_learning_pass.old_threshold} → ${state.last_learning_pass.new_threshold}`
+      : '';
+  } catch (err) {
+    document.getElementById('status-dot').classList.add('down');
+    document.getElementById('status-text').textContent = 'Backend unreachable';
+  }
+}
+
+async function refreshMetrics() {
+  const m = await fetchJSON('/api/metrics');
+  document.getElementById('kpi-total').textContent = m.total;
+  document.getElementById('kpi-approved').textContent = m.approved;
+  document.getElementById('kpi-flagged').textContent = m.flagged;
+  document.getElementById('kpi-blocked').textContent = m.blocked;
+  document.getElementById('kpi-blocked-value').textContent = fmtAmount(m.blocked_value);
+}
+
+async function refreshFeed() {
+  latestFeed = await fetchJSON('/api/live-transactions?limit=30');
+  document.getElementById('feed-count').textContent = latestFeed.length;
+  const list = document.getElementById('feed-list');
+
+  if (latestFeed.length === 0) {
+    list.innerHTML = '<div class="empty-note">No transactions yet.</div>';
+    return;
+  }
+
+  list.innerHTML = latestFeed.map((t, idx) => {
+    const {statusClass, statusLabel} = effectiveStatus(t);
+    return `
+    <div class="txn ${statusClass}" data-idx="${idx}">
+      <div class="bar"></div>
+      <div class="body">
+        <div class="top-row">
+          <span class="id">${t.transaction_id}</span>
+          <span class="amount">${fmtAmount(t.amount)}</span>
+        </div>
+        <div class="route">${t.sender_id} → ${t.receiver_id}</div>
+        <div class="reason">${t.decision_reason || ''}</div>
+      </div>
+      <div class="status">${statusLabel}</div>
+    </div>
+  `;
+  }).join('');
+}
+
+function effectiveStatus(t) {
+  // A resolved review has moved past its original final_decision --
+  // e.g. a 'flag' that an analyst confirmed as fraud is now truly
+  // 'blocked', not still 'flagged'. Reflect the current outcome, not
+  // the stale initial one.
+  if (t.resolution === 'confirmed_fraud') {
+    return {statusClass: 'block', statusLabel: 'BLOCKED (confirmed fraud)'};
+  }
+  if (t.resolution === 'confirmed_legitimate') {
+    return {statusClass: 'approve', statusLabel: 'APPROVED (dismissed)'};
+  }
+  return {statusClass: t.final_decision, statusLabel: t.final_decision.toUpperCase()};
+}
+
+document.getElementById('feed-list').addEventListener('click', (e) => {
+  const row = e.target.closest('.txn');
+  if (!row) return;
+  const txn = latestFeed[parseInt(row.dataset.idx, 10)];
+  if (txn) openDetailModal(txn);
+});
+
+function openDetailModal(txn) {
+  document.getElementById('pipeline-stepper').innerHTML = buildPipelineSteps(txn);
+
+  const rows = [
+    ['Transaction ID', txn.transaction_id],
+    ['Sender', txn.sender_id],
+    ['Receiver', txn.receiver_id],
+    ['Amount', fmtAmount(txn.amount)],
+    ['Type', txn.type],
+    ['ML score', Number(txn.ml_score).toFixed(4)],
+    ['Rules triggered', JSON.parse(txn.rules_triggered || '[]').join(', ') || 'none'],
+    ['Rules verdict', txn.rules_verdict],
+    ['Original verdict', txn.final_decision.toUpperCase()],
+    ['Current status', txn.transaction_status],
+  ];
+  if (txn.resolution) {
+    rows.push(['Analyst resolution', txn.resolution === 'confirmed_fraud' ? 'Confirmed fraud' : 'Dismissed (legitimate)']);
+  }
+  document.getElementById('detail-modal-rows').innerHTML = rows.map(([label, value]) =>
+    `<div class="detail-row"><span class="label">${label}</span><span class="value">${value}</span></div>`
+  ).join('');
+  document.getElementById('detail-modal-reasoning').textContent = txn.decision_reason || 'No explanation recorded.';
+
+  switchModalTab('flow');
+  document.getElementById('detail-modal-backdrop').classList.add('show');
+}
+
+function buildPipelineSteps(txn) {
+  const rulesTriggered = JSON.parse(txn.rules_triggered || '[]');
+  const mlScore = Number(txn.ml_score);
+  const mlMarkerClass = mlScore >= 0.7 ? 'block' : mlScore >= 0.3 ? 'flag' : 'approve';
+
+  const decisionMarkerClass = txn.final_decision; // approve/flag/block all match CSS classes directly
+
+  let learningDetail;
+  if (txn.resolution) {
+    learningDetail = `An analyst's <span class="hl">${txn.resolution === 'confirmed_fraud' ? 'Confirm fraud' : 'Dismiss'}</span> decision on this transaction was recorded as ground truth and added to the Learning Agent's batch.`;
+  } else if (txn.final_decision === 'flag') {
+    learningDetail = `Still awaiting analyst review. Once resolved (Confirm/Dismiss), that decision becomes the ground-truth label fed to the Learning Agent -- unresolved transactions don't contribute.`;
+  } else {
+    learningDetail = `This transaction was resolved automatically (${txn.final_decision}) without analyst input, so it has no confirmed ground truth and isn't added to the Learning Agent's batch. Only analyst-resolved reviews supply training signal for live traffic.`;
+  }
+
+  const steps = [
+    {
+      marker: '1', markerClass: 'approve', phase: 'PERCEIVE',
+      title: '🧹 Data Cleaning Agent',
+      detail: `Validated and structured the raw transaction: sender <span class="hl">${txn.sender_id}</span> → receiver <span class="hl">${txn.receiver_id}</span> (${txn.receiver_type}), amount <span class="hl">${fmtAmount(txn.amount)}</span>. Passed clean to the next stage.`,
+    },
+    {
+      marker: '2', markerClass: mlMarkerClass, phase: 'REASON · STATISTICAL',
+      title: '🔍 Pattern Detection Agent',
+      detail: `The trained Random Forest model scored this transaction <span class="hl">${mlScore.toFixed(4)}</span> out of 1.00, based on balance-movement features (does it drain the account? does the destination balance not add up?).`,
+    },
+    {
+      marker: '3', markerClass: rulesTriggered.length ? 'flag' : 'approve', phase: 'REASON · SYMBOLIC',
+      title: '📋 Rule Checking Agent',
+      detail: rulesTriggered.length
+        ? `Triggered: <span class="hl">${rulesTriggered.join(', ')}</span>. Rules verdict: <span class="hl">${txn.rules_verdict}</span>.`
+        : 'No fixed rules triggered. Rules verdict: <span class="hl">clear</span>.',
+    },
+    {
+      marker: '4', markerClass: decisionMarkerClass, phase: 'REASON · ARBITRATION',
+      title: '⚖️ Decision Agent',
+      detail: txn.decision_reason || 'Combined the ML score and rules verdict into a final decision.',
+    },
+    {
+      marker: '5', markerClass: decisionMarkerClass, phase: 'ACT',
+      title: '⚡ Action Agent',
+      detail: `Executed: <span class="hl">${txn.action_taken || txn.final_decision}</span>. Current status: <span class="hl">${txn.transaction_status}</span>.`,
+    },
+    {
+      marker: '6', markerClass: txn.resolution ? 'approve' : 'flag', phase: 'FEEDBACK LOOP',
+      title: '🎓 Learning Agent',
+      detail: learningDetail,
+    },
+  ];
+
+  return steps.map(s => `
+    <div class="step">
+      <div class="step-marker ${s.markerClass}">${s.marker}</div>
+      <div class="step-content">
+        <div class="step-phase">${s.phase}</div>
+        <div class="step-title">${s.title}</div>
+        <div class="step-detail">${s.detail}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function switchModalTab(tab) {
+  document.getElementById('tab-flow-btn').classList.toggle('active', tab === 'flow');
+  document.getElementById('tab-raw-btn').classList.toggle('active', tab === 'raw');
+  document.getElementById('tab-flow-panel').classList.toggle('active', tab === 'flow');
+  document.getElementById('tab-raw-panel').classList.toggle('active', tab === 'raw');
+}
+document.getElementById('tab-flow-btn').addEventListener('click', () => switchModalTab('flow'));
+document.getElementById('tab-raw-btn').addEventListener('click', () => switchModalTab('raw'));
+
+document.getElementById('detail-modal-close').addEventListener('click', () => {
+  document.getElementById('detail-modal-backdrop').classList.remove('show');
+});
+document.getElementById('detail-modal-backdrop').addEventListener('click', (e) => {
+  if (e.target.id === 'detail-modal-backdrop') e.currentTarget.classList.remove('show');
+});
+
+let awaitingCustomerVerification = new Set();
+
+async function refreshReviews() {
+  const reviews = await fetchJSON('/api/reviews');
+  document.getElementById('kpi-pending').textContent = reviews.length;
+  document.getElementById('review-count').textContent = reviews.length;
+  const list = document.getElementById('review-list');
+
+  // A resolved dismiss removes the transaction from /api/reviews
+  // entirely, so drop it from the waiting set once it's gone --
+  // otherwise the set would grow forever across a long demo.
+  const stillPendingIds = new Set(reviews.map(r => r.transaction_id));
+  awaitingCustomerVerification.forEach(id => {
+    if (!stillPendingIds.has(id)) awaitingCustomerVerification.delete(id);
+  });
+
+  if (reviews.length === 0) {
+    list.innerHTML = '<div class="empty-note">Nothing waiting for review.</div>';
+    return;
+  }
+
+  list.innerHTML = reviews.map(r => {
+    if (awaitingCustomerVerification.has(r.transaction_id)) {
+      return `
+        <div class="review-item">
+          <div class="top-row">
+            <span class="id">${r.transaction_id}</span>
+            <span class="amount">${fmtAmount(r.amount)}</span>
+          </div>
+          <div class="why">⏳ OTP sent — waiting for the customer to verify and release these funds.</div>
+        </div>
+      `;
+    }
+    return `
+    <div class="review-item">
+      <div class="top-row">
+        <span class="id">${r.transaction_id}</span>
+        <span class="amount">${fmtAmount(r.amount)}</span>
+      </div>
+      <div class="why">${r.decision_reason || 'Flagged for review.'}</div>
+      <div class="actions">
+        <button class="btn confirm" data-id="${r.transaction_id}" data-action="confirm-fraud">Confirm fraud</button>
+        <button class="btn dismiss" data-id="${r.transaction_id}" data-action="dismiss">Dismiss</button>
+      </div>
+    </div>
+  `;
+  }).join('');
+}
+
+document.getElementById('review-list').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-id]');
+  if (!btn) return;
+  const transactionId = btn.dataset.id;
+  const action = btn.dataset.action;
+  const container = btn.closest('.review-item');
+
+  container.querySelectorAll('button').forEach(b => b.disabled = true);
+
+  try {
+    if (action === 'confirm-fraud') {
+      // Blocking fraud is the bank protecting the customer -- no
+      // consent needed, resolves immediately.
+      const result = await fetchJSON(`/api/reviews/${transactionId}/confirm-fraud`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({}),
+      });
+      await Promise.all([refreshReviews(), refreshFeed(), refreshMetrics(), refreshState()]);
+      celebrateIfLearningPassTriggered(result.learning_update);
+    } else {
+      // Dismiss releases the customer's money -- that's the one
+      // action that should require their own confirmation, so this
+      // only requests an OTP; the customer verifies it in their own
+      // app (see login.html/customer.html's polling).
+      await fetchJSON(`/api/reviews/${transactionId}/request-otp`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({}),
+      });
+      awaitingCustomerVerification.add(transactionId);
+      await refreshReviews();
+    }
+  } catch (err) {
+    alert(err.message || 'Could not complete this action.');
+    container.querySelectorAll('button').forEach(b => b.disabled = false);
+  }
+});
+
+function celebrateIfLearningPassTriggered(learningUpdate) {
+  if (learningUpdate && learningUpdate.learning_pass_triggered) {
+    const r = learningUpdate.report;
+    alert(`🎓 Learning Agent pass triggered!\n\nThreshold: ${r.old_threshold} → ${r.new_threshold}\nReason: ${r.reason}`);
+  }
+}
+
+async function refreshAll() {
+  await Promise.all([refreshState(), refreshMetrics(), refreshFeed(), refreshReviews()]);
+}
+
+refreshAll();
+setInterval(refreshAll, 5000);
+</script>
+
+</body>
+</html>
