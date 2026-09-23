@@ -19,6 +19,7 @@ built from the 5.1M-row PaySim run) completely untouched -- the live
 demo writes to its own separate bank_demo.db.
 """
 
+import json
 import os
 import random
 import sys
@@ -31,12 +32,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from flask import Flask, jsonify, request, send_from_directory
 
-from orchestrator import Orchestrator, seed_demo_accounts, seed_demo_admins, build_blacklist_from_paysim
+from orchestrator import Orchestrator, seed_demo_accounts, seed_demo_admins
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
 BANK_DB_PATH = os.path.join(BASE_DIR, "bank_demo.db")
-PAYSIM_CSV_PATH = os.path.join(BASE_DIR, "paysim.csv")
+BLACKLIST_PATH = os.path.join(BASE_DIR, "blacklist.json")
 
 app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path="")
 
@@ -46,14 +47,21 @@ app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path="")
 # request handler below uses this same instance and its one
 # storage/SQLite connection.
 # ---------------------------------------------------------------------
+# Frozen at dev time from the full PaySim CSV via
+# build_blacklist_from_paysim(min_fraud_count=2) -- see README for the
+# one-off regeneration command. Loading a small JSON file here instead
+# of re-scanning the multi-million-row CSV on every server start is
+# what makes this deployable on PythonAnywhere, which can't host the
+# full dataset.
 _blacklist = set()
-if os.path.exists(PAYSIM_CSV_PATH):
+if os.path.exists(BLACKLIST_PATH):
     try:
-        _blacklist = build_blacklist_from_paysim(PAYSIM_CSV_PATH, min_fraud_count=2)
+        with open(BLACKLIST_PATH) as f:
+            _blacklist = set(json.load(f))
     except Exception as exc:  # pragma: no cover - startup diagnostics only
-        print(f"Could not build blacklist from {PAYSIM_CSV_PATH}: {exc}")
+        print(f"Could not load blacklist from {BLACKLIST_PATH}: {exc}")
 else:
-    print(f"No paysim.csv found at {PAYSIM_CSV_PATH} -- starting with an empty blacklist.")
+    print(f"No blacklist.json found at {BLACKLIST_PATH} -- starting with an empty blacklist.")
 
 # learn_every=5 here (vs. 500 for the historical CSV evaluation) --
 # a live demo will only produce a handful of analyst-resolved
