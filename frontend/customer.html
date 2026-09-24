@@ -281,9 +281,10 @@
         <button class="btn dev-test" id="test-normal">Small payment</button>
         <button class="btn dev-test" id="test-large" title="Needs a balance above ₦1.77M — try Chika Eze's account">Large transfer (flag/block)</button>
         <button class="btn dev-test" id="test-drain">Drain full balance</button>
+        <button class="btn dev-test" id="test-blacklist" title="Sends to a known blacklisted account — always blocks">Blacklisted account (block)</button>
       </div>
     </div>
-
+      
     <div class="section-title" style="margin-top: 32px;">Recent Transactions</div>
     <div id="history-list">
       <div class="empty-note">No transactions yet.</div>
@@ -719,6 +720,9 @@ document.getElementById('test-drain').addEventListener('click', () => {
   const receiverId = otherLoginableAccountId();
   const receiver = allAccounts.find(a => a.account_id === receiverId);
   fillTransferForm(receiver.bank_name, receiverId, currentAccount.available_balance);
+});
+document.getElementById('test-blacklist').addEventListener('click', () => {
+  fillTransferForm('Horizon MFB', 'C1013511446', 5000);
 });
 
 let pendingVerification = null;

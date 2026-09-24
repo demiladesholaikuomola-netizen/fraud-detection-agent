@@ -120,6 +120,8 @@ def seed_demo_accounts(storage):
          "bank_name": "Ivory Trust Bank", "available_balance": 750_000.0},
         {"account_id": "C100000006", "display_name": "Ngozi Adeyemi", "pin": "1234",
          "bank_name": "Ivory Trust Bank", "available_balance": 2_000_000.0},
+        {"account_id": "C1013511446", "display_name": "Unknown External Account", "pin": None,
+         "bank_name": "Horizon MFB", "available_balance": 0.0},
     ])
 
 
